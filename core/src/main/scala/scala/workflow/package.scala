@@ -49,15 +49,22 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
   def workflowImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     import c.universe._
 
-    //val Expr(instance) = workflow
-    val Expr(Apply(Select(_, nme.CONSTRUCTOR), List(instance))) = c.prefix
+    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
+    println(showRaw(instance))
+    workflowMacro(c)(c.typeCheck(instance), annottees)
+  }
 
-    val workflowContext = contextFromTerm(c)(c.typeCheck(instance))
+  def workflowMacro(c: Context)(instance: c.Tree, annottees: Seq[c.Expr[Any]]): c.Expr[Any] = {
+    import c.universe._
 
-    val List(Expr(ValDef(mods, name, typetree, code))) = annottees
+    val workflowContext = contextFromTerm(c)(instance)
 
-    c.Expr[Any](Block(ValDef(mods, name, typetree, rewrite(c)(code, workflowContext).asInstanceOf[Tree]), Literal(Constant(()))))
-    //c.abort(c.enclosingPosition, "Wow")
+    util.Try {
+      val Seq(Expr(ValDef(mods, name, typetree, code))) = annottees
+      c.Expr[Any](Block(ValDef(mods, name, typetree, rewrite(c)(code, workflowContext).asInstanceOf[Tree]), Literal(Constant(()))))
+    } getOrElse {
+      c.abort(c.enclosingPosition, "Workflow not allowed here. Use @workflow(...) val foo = ...")
+    }
   }
 
   /*object workflow {
