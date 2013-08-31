@@ -50,7 +50,6 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
     import c.universe._
 
     val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
-    println(showRaw(instance))
     workflowMacro(c)(c.typeCheck(instance), annottees)
   }
 
