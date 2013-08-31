@@ -2,11 +2,12 @@ package scala
 
 import language.experimental.macros
 import language.higherKinds
+import scala.annotation.StaticAnnotation
 import reflect.macros.{TypecheckException, Context}
 import util.{Failure, Success}
 
 package object workflow extends FunctorInstances with SemiIdiomInstances with IdiomInstances with MonadInstances {
-  def context[F[_]](code: _): _ = macro contextImpl
+  /*def context[F[_]](code: _): _ = macro contextImpl
   def contextImpl(c: Context)(code: c.Tree): c.Tree = {
     import c.universe._
 
@@ -28,9 +29,9 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
 
       code
     }
-  }
+  }*/
 
-  def workflow[F[_]](code: _): _ = macro workflowImpl
+  /*def workflow[F[_]](code: _): _ = macro workflowImpl
   def workflowImpl(c: Context)(code: c.Tree): c.Tree = {
     import c.universe._
 
@@ -39,9 +40,27 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
     val workflowContext = contextFromType(c)(typeTree)
 
     rewrite(c)(code, workflowContext).asInstanceOf[Tree]
+  }*/
+
+  class workflow(wf: Any) extends StaticAnnotation {
+    def macroTransform(annottees: Any*) = macro workflowImpl
   }
 
-  object workflow {
+  def workflowImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
+    import c.universe._
+
+    //val Expr(instance) = workflow
+    val Expr(Apply(Select(_, nme.CONSTRUCTOR), List(instance))) = c.prefix
+
+    val workflowContext = contextFromTerm(c)(c.typeCheck(instance))
+
+    val List(Expr(ValDef(mods, name, typetree, code))) = annottees
+
+    c.Expr[Any](Block(ValDef(mods, name, typetree, rewrite(c)(code, workflowContext).asInstanceOf[Tree]), Literal(Constant(()))))
+    //c.abort(c.enclosingPosition, "Wow")
+  }
+
+  /*object workflow {
     def apply(workflow: Any)(code: _): _ = macro workflowImpl
     def workflowImpl(c: Context)(workflow: c.Expr[Any])(code: c.Tree): c.Tree = {
       import c.universe._
@@ -52,9 +71,9 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
 
       rewrite(c)(code, workflowContext).asInstanceOf[Tree]
     }
-  }
+  }*/
 
-  def $[F[_]](code: _): _ = macro $impl
+  /*def $[F[_]](code: _): _ = macro $impl
   def $impl(c: Context)(code: c.Tree): c.Tree = {
     import c.universe._
 
@@ -66,7 +85,7 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
                             contextFromEnclosure(c)
 
     rewrite(c)(code, workflowContext).asInstanceOf[Tree]
-  }
+  }*/
 
   private def contextFromType(c: Context)(typeTree: c.Tree) = {
     import c.universe._
@@ -194,7 +213,7 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
           val (newscope, newexpr) = rewrite(scope.enter)(expr)
           val frame = newscope.materialized.last
           if (frame.isEmpty) {
-            val name = signature map { case (_, name, _) ⇒ name } getOrElse TermName("_")
+            val name = signature map { case (_, name, _) ⇒ name } getOrElse newTermName("_")
             val tpe = typeCheck(newexpr, newscope).get.tpe
             val bind = Bind(name, TypeTree(tpe), newexpr)
             val cont = (_: Boolean) ⇒ signature map {
@@ -207,7 +226,7 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
           } else {
             val value = apply(frame)(newexpr)
             val tpe = typeCheck(newexpr, newscope).get.tpe
-            val name = signature map { case (_, term, _) ⇒ term } getOrElse TermName("_")
+            val name = signature map { case (_, term, _) ⇒ term } getOrElse newTermName("_")
             val bind = Bind(name, TypeTree(tpe), value)
             val cont = (x: Boolean) ⇒ if (x) >>=(bind) compose lambda(bind) // Especially dirty hack!
                                       else   map(bind) compose lambda(bind) // TODO: figure out a better way
@@ -274,7 +293,7 @@ package object workflow extends FunctorInstances with SemiIdiomInstances with Id
         case Success(tpt) ⇒
           resolveLiftedType(tpt.tpe) match {
             case Some(tpe) ⇒
-              val name = TermName(c.freshName("arg$"))
+              val name = newTermName(c.fresh("arg$"))
               val bind = Bind(name, TypeTree(tpe), expr)
               (scope materialize bind, q"$name")
 
