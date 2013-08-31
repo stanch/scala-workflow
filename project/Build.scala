@@ -10,7 +10,6 @@ object BuildSettings {
     resolvers += Resolver.sonatypeRepo("snapshots"),
     resolvers += Resolver.sonatypeRepo("releases"),
     libraryDependencies ++= Seq(
-      compilerPlugin("org.scala-lang.plugins" % "continuations" % "2.10.2"),
       compilerPlugin("org.scala-lang.plugins" % "macro-paradise_2.10.2" % "2.0.0-SNAPSHOT"),
       "org.scala-lang" % "scala-reflect" % "2.10.2"
     )
