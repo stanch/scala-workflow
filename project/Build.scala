@@ -6,10 +6,14 @@ object BuildSettings {
     organization := "org.scalamacros",
     version := "1.0.0",
     scalacOptions ++= Seq("-feature"),
-    scalaVersion := "2.11.0-SNAPSHOT",
-    scalaOrganization := "org.scala-lang.macro-paradise",
+    scalaVersion := "2.10.2",
     resolvers += Resolver.sonatypeRepo("snapshots"),
-    resolvers += Resolver.sonatypeRepo("releases")
+    resolvers += Resolver.sonatypeRepo("releases"),
+    libraryDependencies ++= Seq(
+      compilerPlugin("org.scala-lang.plugins" % "continuations" % "2.10.2"),
+      compilerPlugin("org.scala-lang.plugins" % "macro-paradise_2.10.2" % "2.0.0-SNAPSHOT"),
+      "org.scala-lang" % "scala-reflect" % "2.10.2"
+    )
   )
 }
 
@@ -20,7 +24,7 @@ object MyBuild extends Build {
     "root",
     file("core"),
     settings = buildSettings ++ Seq(
-      libraryDependencies <+= (scalaVersion)("org.scala-lang.macro-paradise" % "scala-reflect" % _),
+      initialCommands in console := "import workflow._",
       libraryDependencies += "org.scalatest" % "scalatest_2.10" % "1.9.1" % "test"
     )
   )
