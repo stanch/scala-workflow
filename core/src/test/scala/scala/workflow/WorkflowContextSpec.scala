@@ -16,9 +16,8 @@ class WorkflowContextSpec extends FlatSpec with ShouldMatchers {
 
   "@workflowContext" should "support DefDefs" in {
     @workflowContext(option) def test = {
-      val x = Some(3)
-      @workflow(option) val y = "asd" + x
-      y
+      val foo = "bar"
+      $( "asd" + Some(3) )
     }
     assert(test === Some("asd3"))
   }

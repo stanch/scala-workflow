@@ -59,12 +59,12 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
     val (code, cont) = util.Try {
       val Seq(Expr(DefDef(mods, name, tparams, vparamss, typetree, code))) = annottees
       code → { x: Tree ⇒
-        c.Expr[Any](Block(DefDef(mods, name, tparams, vparamss, typetree, x), Literal(Constant(()))))
+        c.Expr[Any](Block(DefDef(mods, name, tparams, vparamss, typetree, x), c.literalUnit.tree))
       }
     } orElse util.Try {
       val Seq(Expr(ValDef(mods, name, typetree, code))) = annottees
       code → { x: Tree ⇒
-        c.Expr[Any](Block(ValDef(mods, name, typetree, x), Literal(Constant(()))))
+        c.Expr[Any](Block(ValDef(mods, name, typetree, x), c.literalUnit.tree))
       }
     } getOrElse {
       c.abort(c.enclosingPosition, msg)
