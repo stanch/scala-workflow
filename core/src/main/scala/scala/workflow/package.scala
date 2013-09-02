@@ -3,7 +3,7 @@ package scala
 import language.experimental.macros
 import language.higherKinds
 import scala.annotation.StaticAnnotation
-import reflect.macros.{TypecheckException, Context}
+import scala.reflect.macros.{Universe, TypecheckException, Context}
 import util.{Failure, Success}
 import scala.reflect.internal.annotations.compileTimeOnly
 
@@ -43,44 +43,75 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
     rewrite(c)(code, workflowContext).asInstanceOf[Tree]
   }*/
 
-  @compileTimeOnly("Please annotate the enclosing method with `@enableWorkflow`")
-  def workflow(wf: Any)(code: Any): Any = ???
-  @compileTimeOnly("Please annotate the enclosing method with `@enableWorkflow`")
-  def workflow(code: Any): Any = ???
+  /* Get WorkflowContext from annotation context’s prefix */
+  private def contextFromAnnotation(c: Context) = {
+    import c.universe._
 
-//  class enableWorkflow extends StaticAnnotation {
-//    def macroTransform(annottees: Any*) = macro enableWorkflowImpl
-//  }
-//
-//  def contextImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
-//    import c.universe._
-//
-//    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
-//    val workflowContext = contextFromTerm(c)(instance)
-//  }
+    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
+    contextFromTerm(c)(c.typeCheck(instance))
+  }
+
+  /* Extract code from the definition and apply `rewrite` to it. If extraction fails, abort with `msg` */
+  private def rewriteCode(c: Context)(annottees: Seq[c.Expr[Any]], rewrite: c.Tree ⇒ c.Tree, msg: String) = {
+    import c.universe._
+
+    // use a continuation approach not to put `rewrite` inside util.Try
+    val (code, cont) = util.Try {
+      val Seq(Expr(DefDef(mods, name, tparams, vparamss, typetree, code))) = annottees
+      code → { x: Tree ⇒
+        c.Expr[Any](Block(DefDef(mods, name, tparams, vparamss, typetree, x), Literal(Constant(()))))
+      }
+    } orElse util.Try {
+      val Seq(Expr(ValDef(mods, name, typetree, code))) = annottees
+      code → { x: Tree ⇒
+        c.Expr[Any](Block(ValDef(mods, name, typetree, x), Literal(Constant(()))))
+      }
+    } getOrElse {
+      c.abort(c.enclosingPosition, msg)
+    }
+
+    cont(rewrite(code))
+  }
+
+  /** Stub to be replaced by @workflowContext */
+  @compileTimeOnly("Please annotate the enclosing definition with `@workflowContext`")
+  def $(code: Any): Any = ???
+
+  /** Annotation to enable workflow brackets (`$`) */
+  class workflowContext(wf: Any) extends StaticAnnotation {
+    def macroTransform(annottees: Any*) = macro workflowContextImpl
+  }
+
+  def workflowContextImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
+    import c.universe._
+
+    // get context
+    val context = contextFromAnnotation(c)
+
+    // transform the code by replacing all stubs with rewritten trees
+    val transformer = { code: Tree ⇒
+      val t = new Transformer {
+        val WorkflowTerm = newTermName("$")
+        override def transform(tree: Tree): Tree = tree match {
+          case Apply(Ident(WorkflowTerm), x :: Nil) ⇒ rewrite(c)(x, context)
+          case _ ⇒ super.transform(tree)
+        }
+      }
+      t.transform(code)
+    }
+
+    // return the original definition with the transformed code
+    rewriteCode(c)(annottees, transformer, "@workflowContext should annotate a definition of either value, method or function")
+  }
 
   class workflow(wf: Any) extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro workflowImpl
   }
 
   def workflowImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
-    import c.universe._
-
-    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
-    workflowMacro(c)(c.typeCheck(instance), annottees)
-  }
-
-  def workflowMacro(c: Context)(instance: c.Tree, annottees: Seq[c.Expr[Any]]): c.Expr[Any] = {
-    import c.universe._
-
-    val workflowContext = contextFromTerm(c)(instance)
-
-    util.Try {
-      val Seq(Expr(ValDef(mods, name, typetree, code))) = annottees
-      c.Expr[Any](Block(ValDef(mods, name, typetree, rewrite(c)(code, workflowContext).asInstanceOf[Tree]), Literal(Constant(()))))
-    } getOrElse {
-      c.abort(c.enclosingPosition, "Workflow is not allowed here. Use @workflow(...) val foo = ...")
-    }
+    val context = contextFromAnnotation(c)
+    val transformer = rewrite(c)(_: c.Tree, context)
+    rewriteCode(c)(annottees, transformer, "@workflow should annotate a definition of either value, method or function")
   }
 
   /*object workflow {

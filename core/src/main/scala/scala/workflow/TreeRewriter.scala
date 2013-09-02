@@ -75,21 +75,18 @@ trait TreeRewriter {
 
     def printval[A](x: A): A = { println(x); x }
 
-    def typeCheck(tree: Tree, scope: Scope): util.Try[Tree] = {
-      //println(s"typechecking ${scope wrapping tree.duplicate}")
-      //println(util.Try(c.typeCheck(q"4+")))
-      printval {
-        util.Try(c.typeCheck(scope wrapping tree.duplicate)) recoverWith {
-          case e: TypecheckException
-            if e.msg.contains("follow this method with `_'") || e.msg.contains("ambiguous reference") ||
-              (e.msg.contains("package") && e.msg.contains("is not a value")) ⇒ Success(EmptyTree)
-          case e: TypecheckException
-            if e.msg.contains("missing arguments for constructor") ⇒
-            util.Try(c.typeCheck(scope wrapping q"(${tree.duplicate})(_)")) recover {
-              case e: TypecheckException
-                if !e.msg.contains("too many arguments for constructor") ⇒ EmptyTree
-            }
-        }}
+    def typeCheck(tree: Tree, scope: Scope): util.Try[Tree] = /*printval*/ {
+      util.Try(c.typeCheck(scope wrapping tree.duplicate)) recoverWith {
+        case e: TypecheckException
+          if e.msg.contains("follow this method with `_'") || e.msg.contains("ambiguous reference") ||
+            (e.msg.contains("package") && e.msg.contains("is not a value")) ⇒ Success(EmptyTree)
+        case e: TypecheckException
+          if e.msg.contains("missing arguments for constructor") ⇒
+          util.Try(c.typeCheck(scope wrapping q"(${tree.duplicate})(_)")) recover {
+            case e: TypecheckException
+              if !e.msg.contains("too many arguments for constructor") ⇒ EmptyTree
+          }
+      }
     }
 
     /* This whole function stinks. It's long, unreliable and some looks redundant.
