@@ -4,7 +4,7 @@ import language.experimental.macros
 import scala.annotation.StaticAnnotation
 import scala.reflect.macros.Context
 
-object Annotations {
+object Shortcuts {
   class async extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro asyncImpl
   }
