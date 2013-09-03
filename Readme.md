@@ -6,8 +6,8 @@ version of _idiom brackets_.
 
 This fork requires Scala `2.10.3-RC1` and [Macro Paradise compiler plugin](http://docs.scala-lang.org/overviews/macros/paradise.html).
 Implementation progress/blockers:
-[ ] https://github.com/scalamacros/paradise/issues/2
-[ ] https://github.com/aztek/scala-workflow/issues/2#issuecomment-23667564
+- https://github.com/scalamacros/paradise/issues/2
+- https://github.com/aztek/scala-workflow/issues/2#issuecomment-23667564
 
 ```
 $ git clone https://github.com/aztek/scala-workflow
