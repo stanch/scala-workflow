@@ -73,8 +73,6 @@ trait TreeRewriter {
       private def mergeFrames(frames: List[List[Frame]]) = frames.map(_.head).flatten.distinct :: frames.head.tail
     }
 
-    def printval[A](x: A): A = { println(x); x }
-
     def typeCheck(tree: Tree, scope: Scope): util.Try[Tree] = /*printval*/ {
       util.Try(c.typeCheck(scope wrapping tree.duplicate)) recoverWith {
         case e: TypecheckException

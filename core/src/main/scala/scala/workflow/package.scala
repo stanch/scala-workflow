@@ -50,7 +50,7 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   }
 
   /* Extract code from the definition and apply `rewrite` to it. If extraction fails, abort with `msg` */
-  private[workflow] def rewriteCode(c: Context)(annottees: Seq[c.Expr[Any]], rewrite: c.Tree ⇒ c.Tree, name: String, isContext: Boolean) = {
+  private[workflow] def rewriteCode(c: Context)(annottees: Seq[c.Expr[Any]], rewrite: c.Tree ⇒ c.Tree, annotationName: String, isContext: Boolean) = {
     import c.universe._
 
     annottees match {
@@ -69,7 +69,7 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
 
       case _ ⇒
         val moduleAllowed = if (isContext) " module," else ""
-        c.abort(c.enclosingPosition, s"$name should annotate a definition of either$moduleAllowed value, method or function")
+        c.abort(c.enclosingPosition, s"$annotationName should annotate a definition of either$moduleAllowed value, method or function")
     }
   }
 
