@@ -4,8 +4,10 @@ Scala workflow [![Travis CI Status](https://api.travis-ci.org/aztek/scala-workfl
 in Scala with 2.11 macros, resembling _`for`-comprehension_ and some enhanced
 version of _idiom brackets_.
 
-`scala-workflow` only requires [untyped macros](http://docs.scala-lang.org/overviews/macros/untypedmacros.html)
-that is an experimental feature of [Macro Paradise](http://docs.scala-lang.org/overviews/macros/paradise.html).
+This fork requires Scala `2.10.3-RC1` and [Macro Paradise compiler plugin](http://docs.scala-lang.org/overviews/macros/paradise.html).
+Implementation progress/blockers:
+[ ] https://github.com/scalamacros/paradise/issues/2
+[ ] https://github.com/aztek/scala-workflow/issues/2#issuecomment-23667564
 
 ```
 $ git clone https://github.com/aztek/scala-workflow
@@ -18,8 +20,8 @@ Type :help for more information.
 scala> import workflow._
 import workflow._
 
-scala> $[List](List(1, 2) * List(4, 5))
-res0: List[Int] = List(4, 5, 8, 10)
+scala> @workflow[List] val x = List(1, 2) * List(4, 5)
+x: List[Int] = List(4, 5, 8, 10)
 ```
 
 Contents
@@ -46,22 +48,22 @@ Import `workflow` interface.
 import workflow._
 ```
 
-You will now have three macros at hand — `context`, `$` and `workflow`. Wrap a
-block of code in `context` and the argument of `$` will begin to act funny.
+You will now have two annotations at hand — `@workflow`, and `@context`. Annotate a
+definition with `@context` and the argument of `$` function will begin to act funny.
 
 ```scala
-context[Option] {
+@context[Option] object optionExample {
   $(Some(42) + 1) should equal (Some(43))
   $(Some(10) + Some(5) * Some(2)) should equal (Some(20))
 }
 
-context[List] {
+@context[List] object listExample {
   $(List(1, 2, 3) * 2) should equal (List(2, 4, 6))
   $(List("a", "b") + List("x", "y")) should equal (List("ax", "ay", "bx", "by"))
 }
 ```
 
-Enclosing `context` macro takes type constructor `F[_]` as an argument and
+Enclosing `@context` macro annotation takes type constructor `F[_]` as an argument and
 makes all the `$`s inside evaluate their arguments as if everything of type
 `F[T]` there was of type `T`, except it retains _computational effects_,
 associated with `F`.
@@ -72,7 +74,7 @@ summoned by type constructor name (like the ones shown above), or passed
 explicitly, like `zipList` below.
 
 ```scala
-context(zipList) {
+@context(zipList) object zipListExample {
   $(List(1, 2, 3, 4) * List(2, 3, 4)) should equal (List(2, 6, 12))
 }
 ```
@@ -83,11 +85,11 @@ called _idioms_), _monads_ and a couple of other intermediate algebraic
 structures.
 
 ```scala
-context(map[String]) {
+@context(map[String]) object mapExample {
   $(Map("foo" → 10, "bar" → 5) * 2) should equal (Map("foo" → 20, "bar" → 10))
 }
 
-context(function[String]) {
+@context(function[String]) object funcExample {
   val chars   = (s: String) ⇒ s.length
   val letters = (s: String) ⇒ s.count(_.isLetter)
   val nonletters = $(chars - letters)
@@ -100,7 +102,7 @@ You can pass complex blocks of code to `$`.
 ```scala
 def divide(x: Double, y: Double) = if (y == 0) None else Some(x / y)
 
-context[Option] {
+@context[Option] object divisionExample {
   $ {
     val x = divide(1, 2)
     val y = divide(4, x)
@@ -109,18 +111,19 @@ context[Option] {
 }
 ```
 
-Nested `context` and `$` calls might look awkward, so instead you can use
-special syntactic sugar, called `workflow`.
+Nested `@context` and `$` calls might look awkward, so instead you can use
+special syntactic sugar, called `@workflow`.
 
 ```scala
-workflow[Option] {
+@workflow[Option] val z = {
   val x = divide(1, 2)
   val y = divide(4, x)
   divide(y, x)
-} should equal (Some(16))
+}
+z should equal (Some(16))
 ```
 
-Just like in `context`, you can pass either type constructor or workflow
+Just like in `@context`, you can pass either type constructor or workflow
 object.
 
 Workflows
@@ -210,7 +213,7 @@ for generated code. That means, that you can have idiom brackets kind of syntax
 for functors (such as `Map[A, B]`) and `for`/`do`-notation kind of syntax for
 monads without `return` (they are called `SemiMonad`s here).  
 
-Current implementation uses untyped macros and takes untyped Scala AST as an
+Current implementation uses macro annotations and takes untyped Scala AST as an
 argument. Then we start by eagerly typechecking all the subexpressions (i.e.,
 starting with the most nested subexpressions) and find, which of them
 typechecks successfully with the result type corresponding to the type of the
@@ -221,9 +224,8 @@ typechecks correctly and there is a list of lifted values at hand.
 Consider the example below.
 
 ```scala
-context(option) {
-  $(2 * 3 + Some(10) * Some(5))
-}
+@workflow(option)
+val x = 2 * 3 + Some(10) * Some(5)
 ```
 
 All the numbers typecheck and are not inside `Option`, so they are left as is.
@@ -408,40 +410,27 @@ Here are some of other examples of code rewriting within `Option` context.
 </table>
 
 ### Context definition
-Workflow context is defined with `context` macro that either takes a workflow
+Workflow context is defined with `@context` annotation that either takes a workflow
 instance as an argument, or a type constructor `F[_]`, such that there is some
 workflow instance defined somewhere in the implicits scope.
 
 The following examples are equivalent.
 
 ```scala
-context[List] {
-  $(List(2, 5) * List(3, 7))
-}
+@context[List] val x = $(List(2, 5) * List(3, 7))
 
-context(list) {
-  $(List(2, 5) * List(3, 7))
-}
+context(list) val x = $(List(2, 5) * List(3, 7))
 ```
 
-Macro `$` takes workflow context from the closest `context` block.
-Alternatively, you can provide type constructor, whose workflow instance will
-be taken from the implicits scope.
+Function `$` takes workflow context from the closest `context` block.
 
-```scala
-$[List](List(2, 5) * List(3, 7))
-```
-
-That way, `$` will disregard any enclosing `context` block and will work within
-`Workflow[List]` context.
-
-Nested applications of `context` and `$` can be replaced with `workflow` macro.
-You are encouraged to do so for complex blocks of code. You are discourage to
-use `$` inside. `workflow` either takes a workflow instance as an argument, or
+Nested applications of `@context` and `$` can be replaced with `@workflow` annotation.
+You are encouraged to do so for complex blocks of code.
+`@workflow` either takes a workflow instance as an argument, or
 a type constructor `F[_]` and rewrites the block of code in the same way as `$`.
 
 ```scala
-workflow(list) { List(2, 5) * List(3, 7) }
+@workflow(list) val x = List(2, 5) * List(3, 7)
 ```
 
 There are plenty of built-in workflow instances in traits `FunctorInstances`,
@@ -460,7 +449,7 @@ create `IdiomCompose` object directly with class constructor, or use `$` method
 of the class `Idiom`.
 
 ```scala
-context(list $ option) {
+@context(list $ option) object listOptionExample {
   $(List(Some(2), Some(3), None) * 10) should equal (List(Some(20), Some(30), None))
 }
 ```
@@ -515,12 +504,12 @@ wrapped into the workflow `Env ⇒ Option[_]`, which can either be constructed
 by hand, or composed of `Env ⇒ _` and `Option` workflows.
 
 ```scala
-def eval: Expr ⇒ Env ⇒ Option[Int] =
-  context(function[Env] $ option) {
-    case Var(x) ⇒ fetch(x)
-    case Val(value) ⇒ $(value)
-    case Add(x, y) ⇒ $(eval(x) + eval(y))
-  }
+@context(function[Env] $ option)
+def eval: Expr ⇒ Env ⇒ Option[Int] = { 
+   case Var(x) ⇒ fetch(x)
+   case Val(value) ⇒ $(value)
+   case Add(x, y) ⇒ $(eval(x) + eval(y))
+}
 ```
 
 ### Functional reactive programming
@@ -561,7 +550,7 @@ val frp = new Idiom[Cell] {
 With that instance we can organize reactive computations with simple syntax.
 
 ```scala
-context(frp) {
+@context(frp) object frpExamples {
   val a = $(10)
   val b = $(5)
 
@@ -632,12 +621,13 @@ Now, working inside `stackLang` context we can write programs as sequences of
 stack commands and execute them to get modified state of the stack.
 
 ```scala
-context(stackLang) {
-  val programA = $ { put(5); dup; put(7); rot; sub }
-  execute(programA) should equal(Right(List(2, 5)))
+@workflow(stackLang)
+val programA = { put(5); dup; put(7); rot; sub }
+execute(programA) should equal(Right(List(2, 5)))
 
-  val programB = $ { put(5); dup; sub; rot; dup }
-  execute(programB) should equal(Left("Stack underflow while executing `rot`"))
+@workflow(stackLang)
+val programB = { put(5); dup; sub; rot; dup }
+execute(programB) should equal(Left("Stack underflow while executing `rot`"))
 }
 ```
 
@@ -672,38 +662,38 @@ Point-free notation support is rather limited in Scala, compared to Haskell,
 but some things still could be done. Here are some examples to get you inspired.
 
 ```scala
-context(function[Char]) {
-  val isLetter: Char ⇒ Boolean = _.isLetter
-  val isDigit:  Char ⇒ Boolean = _.isDigit
+val isLetter: Char ⇒ Boolean = _.isLetter
+val isDigit:  Char ⇒ Boolean = _.isDigit
 
-  // Traditionally
-  val isLetterOrDigit = (ch: Char) ⇒ isLetter(ch) || isDigit(ch)
+// Traditionally
+val isLetterOrDigit = (ch: Char) ⇒ isLetter(ch) || isDigit(ch)
 
-  // Combinatorially
-  val isLetterOrDigit = $(isLetter || isDigit)
-}
+// Combinatorially
+@workflow(function[Char])
+val isLetterOrDigit = isLetter || isDigit
 ```
 
-Scalas `Function.compose` and `Function.andThen` also come in handy.
+Scala’s `Function.compose` and `Function.andThen` also come in handy.
 
 ```scala
-context(function[Double]) {
-  val sqrt: Double ⇒ Double = x ⇒ math.sqrt(x)
-  val sqr:  Double ⇒ Double = x ⇒ x * x
-  val log:  Double ⇒ Double = x ⇒ math.log(x)
 
-  // Traditionally
-  val f = (x: Double) ⇒ sqrt((sqr(x) - 1) / (sqr(x) + 1))
+val sqrt: Double ⇒ Double = x ⇒ math.sqrt(x)
+val sqr:  Double ⇒ Double = x ⇒ x * x
+val log:  Double ⇒ Double = x ⇒ math.log(x)
 
-  // Combinatorially
-  val f = sqrt compose $((sqr - 1) / (sqr + 1))
+// Traditionally
+val f = (x: Double) ⇒ sqrt((sqr(x) - 1) / (sqr(x) + 1))
 
-  // Traditionally
-  val g = (x: Double) ⇒ (sqr(log(x)) - 1) / (sqr(log(x)) + 1)
+// Combinatorially
+@workflow(function[Double])
+val f = sqrt compose ((sqr - 1) / (sqr + 1))
 
-  // Combinatorially
-  val g = log andThen $((sqr - 1) / (sqr + 1))
-}
+// Traditionally
+val g = (x: Double) ⇒ (sqr(log(x)) - 1) / (sqr(log(x)) + 1)
+
+// Combinatorially
+@workflow(function[Double])
+val g = log andThen ((sqr - 1) / (sqr + 1))
 ```
 
 ### Purely functional logging
@@ -772,7 +762,8 @@ pure computations with writing to a log, much like we would do with `log4j` or
 similar framework.
 
 ```scala
-val Writer(result, logEntries) = workflow(writer[Log]) {
+@workflow(writer[Log])
+val Writer(result, logEntries) = {
   log("Lets define a variable")
   val x = 2
 
@@ -803,6 +794,7 @@ logEntries should equal (Log(List("Lets define a variable",
 Disclaimer
 ----------
 This project is very experimental and your comments and suggestions are highly
-appreciated. Drop me a line [on twitter](http://twitter.com/aztek) or
-[by email](mailto:evgeny.kotelnikov@gmail.com), or [open an issue](./issues/new)
-here on GitHub. I'm also occasionally on #scala IRC channel on Freenode.
+appreciated.
+
+Main developer: Evgeny Kotelnikov [twitter](http://twitter.com/aztek) [email](mailto:evgeny.kotelnikov@gmail.com), occasionally on #scala IRC channel on Freenode.
+Conversion from untyped macros to macro annotations: Nikolay Stanchenko [email](mailto:nick.stanch@gmail.com), see https://github.com/aztek/scala-workflow/issues/2
