@@ -797,4 +797,5 @@ This project is very experimental and your comments and suggestions are highly
 appreciated.
 
 Main developer: Evgeny Kotelnikov [twitter](http://twitter.com/aztek) [email](mailto:evgeny.kotelnikov@gmail.com), occasionally on #scala IRC channel on Freenode.
+
 Conversion from untyped macros to macro annotations: Nikolay Stanchenko [email](mailto:nick.stanch@gmail.com), see https://github.com/aztek/scala-workflow/issues/2
