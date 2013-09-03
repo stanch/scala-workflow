@@ -6,20 +6,36 @@ import org.scalatest.matchers.ShouldMatchers
 class WorkflowContextSpec extends FlatSpec with ShouldMatchers {
   "@workflow" should "support DefDefs" in {
     @workflow(option) def test = "asd" + Some(3)
-    assert(test === Some("asd3"))
+    test should equal (Some("asd3"))
   }
 
   it should "support ValDefs" in {
     @workflow(option) val x = "qwe" + Some(4)
-    assert(x === Some("qwe4"))
+    x should equal (Some("qwe4"))
   }
 
-  "@workflowContext" should "support DefDefs" in {
-    @workflowContext(option) def test = {
+  "@context" should "support DefDefs" in {
+    @context(option) def test = {
       val foo = "bar"
       $( "asd" + Some(3) )
     }
-    assert(test === Some("asd3"))
+    test should equal (Some("asd3"))
+  }
+
+  it should "support ValDefs" in {
+    @context(option) val x = {
+      val bar = "baz"
+      $( "qwe" + Some(4) )
+    }
+    x should equal (Some("qwe4"))
+  }
+
+  it should "support ModuleDefs" in {
+    @context(option) object test {
+      $("asd" + Some(3)) should equal (Some("asd3"))
+      def ping = 3
+    }
+    test.ping
   }
 }
 

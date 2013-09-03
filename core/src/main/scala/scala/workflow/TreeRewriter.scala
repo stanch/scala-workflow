@@ -3,9 +3,9 @@ package scala.workflow
 import scala.reflect.macros.{TypecheckException, Context}
 import scala.util.{Failure, Success}
 
-trait TreeRewriter {
-  protected case class WorkflowContext(tpe: Any, instance: Any)
+private[workflow] case class WorkflowContext(tpe: Any, instance: Any)
 
+trait TreeRewriter {
   protected def rewrite(c: Context)(code: c.Tree, workflowContext: WorkflowContext): c.Tree = {
     import c.universe._
 

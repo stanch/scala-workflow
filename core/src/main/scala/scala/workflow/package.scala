@@ -3,86 +3,20 @@ package scala
 import language.experimental.macros
 import language.higherKinds
 import scala.annotation.StaticAnnotation
-import scala.reflect.macros.{Universe, TypecheckException, Context}
-import util.{Failure, Success}
+import scala.reflect.macros.Context
 import scala.reflect.internal.annotations.compileTimeOnly
 
 package object workflow extends TreeRewriter with FunctorInstances with SemiIdiomInstances with IdiomInstances with MonadInstances {
-  /*def context[F[_]](code: _): _ = macro contextImpl
-  def contextImpl(c: Context)(code: c.Tree): c.Tree = {
-    import c.universe._
-
-    val Apply(TypeApply(_, List(typeTree)), _) = c.macroApplication
-
-    c.macroApplication.updateAttachment(contextFromType(c)(typeTree))
-
-    code
-  }
-
-  object context {
-    def apply(workflow: Any)(code: _): _ = macro contextImpl
-    def contextImpl(c: Context)(workflow: c.Expr[Any])(code: c.Tree): c.Tree = {
-      import c.universe._
-
-      val Expr(instance) = workflow
-
-      c.macroApplication.updateAttachment(contextFromTerm(c)(instance))
-
-      code
-    }
-  }*/
-
-  /*def workflow[F[_]](code: _): _ = macro workflowImpl
-  def workflowImpl(c: Context)(code: c.Tree): c.Tree = {
-    import c.universe._
-
-    val Apply(TypeApply(_, List(typeTree)), _) = c.macroApplication
-
-    val workflowContext = contextFromType(c)(typeTree)
-
-    rewrite(c)(code, workflowContext).asInstanceOf[Tree]
-  }*/
-
-  /* Get WorkflowContext from annotation context’s prefix */
-  private def contextFromAnnotation(c: Context) = {
-    import c.universe._
-
-    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
-    contextFromTerm(c)(c.typeCheck(instance))
-  }
-
-  /* Extract code from the definition and apply `rewrite` to it. If extraction fails, abort with `msg` */
-  private def rewriteCode(c: Context)(annottees: Seq[c.Expr[Any]], rewrite: c.Tree ⇒ c.Tree, msg: String) = {
-    import c.universe._
-
-    // use a continuation approach not to put `rewrite` inside util.Try
-    val (code, cont) = util.Try {
-      val Seq(Expr(DefDef(mods, name, tparams, vparamss, typetree, code))) = annottees
-      code → { x: Tree ⇒
-        c.Expr[Any](Block(DefDef(mods, name, tparams, vparamss, typetree, x), c.literalUnit.tree))
-      }
-    } orElse util.Try {
-      val Seq(Expr(ValDef(mods, name, typetree, code))) = annottees
-      code → { x: Tree ⇒
-        c.Expr[Any](Block(ValDef(mods, name, typetree, x), c.literalUnit.tree))
-      }
-    } getOrElse {
-      c.abort(c.enclosingPosition, msg)
-    }
-
-    cont(rewrite(code))
-  }
-
-  /** Stub to be replaced by @workflowContext */
-  @compileTimeOnly("Please annotate the enclosing definition with `@workflowContext`")
+  /** Workflow brackets */
+  @compileTimeOnly("Please annotate the enclosing definition with `@context`")
   def $(code: Any): Any = ???
 
   /** Annotation to enable workflow brackets (`$`) */
-  class workflowContext(wf: Any) extends StaticAnnotation {
-    def macroTransform(annottees: Any*) = macro workflowContextImpl
+  class context(wf: Any) extends StaticAnnotation {
+    def macroTransform(annottees: Any*) = macro contextImpl
   }
 
-  def workflowContextImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
+  def contextImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     import c.universe._
 
     // get context
@@ -101,9 +35,10 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
     }
 
     // return the original definition with the transformed code
-    rewriteCode(c)(annottees, transformer, "@workflowContext should annotate a definition of either value, method or function")
+    rewriteCode(c)(annottees, transformer, "@context", isContext = true)
   }
 
+  /** Workflow annotation */
   class workflow(wf: Any) extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro workflowImpl
   }
@@ -111,37 +46,43 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   def workflowImpl(c: Context)(annottees: c.Expr[Any]*): c.Expr[Any] = {
     val context = contextFromAnnotation(c)
     val transformer = rewrite(c)(_: c.Tree, context)
-    rewriteCode(c)(annottees, transformer, "@workflow should annotate a definition of either value, method or function")
+    rewriteCode(c)(annottees, transformer, "@workflow", isContext = false)
   }
 
-  /*object workflow {
-    def apply(workflow: Any)(code: _): _ = macro workflowImpl
-    def workflowImpl(c: Context)(workflow: c.Expr[Any])(code: c.Tree): c.Tree = {
-      import c.universe._
-
-      val Expr(instance) = workflow
-
-      val workflowContext = contextFromTerm(c)(instance)
-
-      rewrite(c)(code, workflowContext).asInstanceOf[Tree]
-    }
-  }*/
-
-  /*def $[F[_]](code: _): _ = macro $impl
-  def $impl(c: Context)(code: c.Tree): c.Tree = {
+  /* Extract code from the definition and apply `rewrite` to it. If extraction fails, abort with `msg` */
+  private[workflow] def rewriteCode(c: Context)(annottees: Seq[c.Expr[Any]], rewrite: c.Tree ⇒ c.Tree, name: String, isContext: Boolean) = {
     import c.universe._
 
-    val Apply(TypeApply(_, List(typeTree: TypeTree)), _) = c.macroApplication
+    annottees match {
+      case Seq(Expr(DefDef(mods, name, tparams, vparamss, typetree, code))) ⇒
+        c.Expr[Any](Block(DefDef(mods, name, tparams, vparamss, typetree, rewrite(code)), c.literalUnit.tree))
 
-    val workflowContext = if (typeTree.original != null)
-                            contextFromType(c)(typeTree)
-                          else
-                            contextFromEnclosure(c)
+      case Seq(Expr(ValDef(mods, name, typetree, code))) ⇒
+        c.Expr[Any](Block(ValDef(mods, name, typetree, rewrite(code)), c.literalUnit.tree))
 
-    rewrite(c)(code, workflowContext).asInstanceOf[Tree]
-  }*/
+      case Seq(Expr(ModuleDef(mods, name, Template(parents, self, code)))) if isContext ⇒
+        val pieces = code map {
+          case d @ DefDef(_, _, _, _, _, _) ⇒ d
+          case x ⇒ rewrite(x)
+        }
+        c.Expr[Any](Block(ModuleDef(mods, name, Template(parents, self, pieces)), c.literalUnit.tree))
 
-  private def contextFromType(c: Context)(typeTree: c.Tree) = {
+      case _ ⇒
+        val moduleAllowed = if (isContext) " module," else ""
+        c.abort(c.enclosingPosition, s"$name should annotate a definition of either$moduleAllowed value, method or function")
+    }
+  }
+
+  /* Get WorkflowContext from annotation context’s prefix */
+  private def contextFromAnnotation(c: Context) = {
+    import c.universe._
+
+    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
+    contextFromTerm(c)(c.typeCheck(instance))
+  }
+
+  /* Get WorkflowContext from type argument */
+  private[workflow] def contextFromType(c: Context)(typeTree: c.Tree) = {
     import c.universe._
 
     val tpe = typeTree.tpe
@@ -155,7 +96,8 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
     WorkflowContext(tpe, instance)
   }
 
-  private def contextFromTerm(c: Context)(instance: c.Tree): WorkflowContext = {
+  /* Get WorkflowContext from workflow instance */
+  private[workflow] def contextFromTerm(c: Context)(instance: c.Tree): WorkflowContext = {
     import c.universe._
 
     val workflowSymbol = instance.tpe.baseClasses find (_.fullName == "scala.workflow.Workflow") getOrElse {
@@ -165,17 +107,5 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
     val TypeRef(_, _, List(tpe)) = instance.tpe.baseType(workflowSymbol)
 
     WorkflowContext(tpe, instance)
-  }
-
-  private def contextFromEnclosure(c: Context) = {
-    val workflowContext = for {
-      context ← c.openMacros.view
-      attachments = context.macroApplication.attachments
-      workflowContext ← attachments.get[WorkflowContext]
-    } yield workflowContext
-
-    workflowContext.headOption getOrElse {
-      c.abort(c.enclosingPosition, "Workflow brackets outside of `context' block")
-    }
   }
 }
