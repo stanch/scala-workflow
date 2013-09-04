@@ -12,7 +12,7 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   def $(code: Any): Any = ???
 
   /** Annotation to enable workflow brackets (`$`) */
-  class context(wf: Any) extends StaticAnnotation {
+  class context[F[_]](wf: Any = id) extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro contextImpl
   }
 
@@ -39,7 +39,7 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   }
 
   /** Workflow annotation */
-  class workflow(wf: Any) extends StaticAnnotation {
+  class workflow[F[_]](wf: Any = id) extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro workflowImpl
   }
 
@@ -77,8 +77,11 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   private def contextFromAnnotation(c: Context) = {
     import c.universe._
 
-    val q"${_}.${nme.CONSTRUCTOR}($instance)" = c.prefix.tree
-    contextFromTerm(c)(c.typeCheck(instance))
+    c.prefix.tree match {
+      case q"new ${_}($x)" ⇒ contextFromTerm(c)(c.typeCheck(x))
+      case q"new ${_}[$x]()" ⇒ contextFromType(c)(c.typeCheck(x))
+      case _ ⇒ c.abort(c.enclosingPosition, s"Couldn't get workflow instance from ${showRaw(c.prefix.tree)}")
+    }
   }
 
   /* Get WorkflowContext from type argument */
