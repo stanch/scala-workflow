@@ -12,7 +12,7 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   def $(code: Any): Any = ???
 
   /** Annotation to enable workflow brackets (`$`) */
-  class context[F[_]](wf: Any = id) extends StaticAnnotation {
+  class context[F[_]](wf: Workflow[F] = null) extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro contextImpl
   }
 
@@ -39,7 +39,7 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   }
 
   /** Workflow annotation */
-  class workflow[F[_]](wf: Any = id) extends StaticAnnotation {
+  class workflow[F[_]](wf: Workflow[F] = null) extends StaticAnnotation {
     def macroTransform(annottees: Any*) = macro workflowImpl
   }
 
@@ -78,8 +78,8 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
     import c.universe._
 
     c.prefix.tree match {
-      case q"new ${_}($x)" ⇒ contextFromTerm(c)(c.typeCheck(x))
-      case q"new ${_}[$x]()" ⇒ contextFromType(c)(c.typeCheck(x))
+      case q"new ${_}[$t]" ⇒ contextFromType(c)(t)
+      case q"new ${_}($t)" ⇒ contextFromTerm(c)(t)
       case _ ⇒ c.abort(c.enclosingPosition, s"Couldn't get workflow instance from ${showRaw(c.prefix.tree)}")
     }
   }
@@ -88,7 +88,10 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   private[workflow] def contextFromType(c: Context)(typeTree: c.Tree) = {
     import c.universe._
 
-    val tpe = typeTree.tpe
+    val termTree = c.typeCheck(q"new workflow[$typeTree](null)")
+    val Apply(Select(New(appliedTree: TypeTree), _), _) = termTree
+    val AppliedTypeTree(_, List(checkedTypeTree)) = appliedTree.original
+    val tpe = checkedTypeTree.tpe
 
     val typeRef = TypeRef(NoPrefix, typeOf[Workflow[Any]].typeSymbol, List(tpe))
     val instance = c.inferImplicitValue(typeRef)
@@ -103,12 +106,13 @@ package object workflow extends TreeRewriter with FunctorInstances with SemiIdio
   private[workflow] def contextFromTerm(c: Context)(instance: c.Tree): WorkflowContext = {
     import c.universe._
 
-    val workflowSymbol = instance.tpe.baseClasses find (_.fullName == "scala.workflow.Workflow") getOrElse {
-      c.abort(instance.pos, "Not a workflow instance")
+    val checkedInstance = c.typeCheck(instance)
+    val workflowSymbol = checkedInstance.tpe.baseClasses find (_.fullName == "scala.workflow.Workflow") getOrElse {
+      c.abort(checkedInstance.pos, "Not a workflow instance")
     }
 
-    val TypeRef(_, _, List(tpe)) = instance.tpe.baseType(workflowSymbol)
+    val TypeRef(_, _, List(tpe)) = checkedInstance.tpe.baseType(workflowSymbol)
 
-    WorkflowContext(tpe, instance)
+    WorkflowContext(tpe, checkedInstance)
   }
 }
