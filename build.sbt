@@ -7,7 +7,7 @@ scalacOptions ++= Seq("-feature")
 scalaVersion := "2.10.3-RC1"
 
 resolvers ++= Seq(
-  //Resolver.sonatypeRepo("snapshots"),
+  Resolver.sonatypeRepo("snapshots"),
   Resolver.sonatypeRepo("releases")
 )
 

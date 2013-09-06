@@ -14,6 +14,11 @@ class WorkflowContextSpec extends FlatSpec with ShouldMatchers {
     x should equal (Some("qwe4"))
   }
 
+  it should "work with type args as well" in {
+    @workflow[Option] val x = Some(1) + Some(4) * 2
+    x should equal (Some(9))
+  }
+
   "@context" should "support DefDefs" in {
     @context(option) def test = {
       val foo = "bar"
@@ -36,6 +41,11 @@ class WorkflowContextSpec extends FlatSpec with ShouldMatchers {
       def ping = 3
     }
     test.ping
+  }
+
+  it should "support type args as well" in {
+    @context[List] val x = $(List(2, 3) * 2)
+    x should equal (List(4, 6))
   }
 }
 
